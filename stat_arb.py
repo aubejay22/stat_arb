@@ -994,12 +994,14 @@ class PairTradingStrategy(bt.Strategy):
                 self.open_trade(self.stocks[self.stock_a], self.stocks[self.stock_b])
                 self.trade_direction = "long"
         """
-        p_u_cond_v , p_v_cond_u = self.copule.MI_t(data)
+        p_u_cond_v, p_v_cond_u = self.copule.MI_t(data)
         if not self.active_stock:
-            if p_u_cond_v >= self.params.trade_condition and  p_v_cond_u <= 1 - self.params.trade_condition:
+            if p_u_cond_v >= self.params.trade_condition and p_v_cond_u <= 1 - self.params.trade_condition:
+                # Short stock_a / Long stock_b
                 self.open_trade(self.stocks[self.stock_b], self.stocks[self.stock_a])
                 self.trade_direction = "short"
-            elif p_u_cond_v <= 1 - self.params.trade_condition and p_v_cond_u >= 1 - self.params.trade_condition:
+            elif p_v_cond_u >= self.params.trade_condition and p_u_cond_v <= 1 - self.params.trade_condition:
+                # Long stock_a / Short stock_b
                 self.open_trade(self.stocks[self.stock_a], self.stocks[self.stock_b])
                 self.trade_direction = "long"
 
