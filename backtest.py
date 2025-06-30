@@ -15,9 +15,10 @@ class PairTradingStrategy(bt.Strategy):
         trade_condition=0.99,    # seuil sur le MI
         statistical_model=CopuleGarch,
         stocks=[],                # noms des datafeeds
+        profit_target=0.002,     # 0.2% de gain, si opportunité rapport pas plus que ca on ne la prend pas
         edge_buffer = 6
     )
-
+    
     def __init__(self):
         # datafeeds indexés par nom
         self.stocks = {name: self.getdatabyname(name) for name in self.params.stocks}
@@ -74,8 +75,21 @@ class PairTradingStrategy(bt.Strategy):
             n = self.params.training_day * self.nb_chandelles
             closes = np.column_stack([self.stocks[name].close.get(size=n) for name in subset])
             opens  = np.column_stack([self.stocks[name].open.get(size=n)  for name in subset])
-            rets = ((closes[self.params.edge_buffer:-self.params.edge_buffer] - opens[self.params.edge_buffer:-self.params.edge_buffer]) / opens[self.params.edge_buffer:-self.params.edge_buffer]) * 100
-            return pd.DataFrame(rets, columns=subset)
+            
+            #indice a éliminer a cause du buffer
+            idx = (np
+               .arange(n)              
+               .reshape(self.params.training_day, self.nb_chandelles)     
+               [:, self.params.edge_buffer : self.nb_chandelles-self.params.edge_buffer] 
+               .ravel())                          
+            
+            # -------- sous-échantillonnage -----------
+            closes_use = closes[idx]
+            opens_use  = opens [idx]
+
+            returns = (closes_use - opens_use) / opens_use * 100
+            return pd.DataFrame(returns, columns=subset)
+
 
         elif kind == 'series':
             return pd.Series({
@@ -149,6 +163,10 @@ class PairTradingStrategy(bt.Strategy):
         return ret_a - ret_b
 
     def open_trade(self, longue, short):
+        r = abs(self.spread_return())
+        if r < self.params.profit_target: 
+            return
+        
         price_long = longue.close[0]
         price_short = short.close[0]
         qty_long = int(self.tradesize / price_long)
@@ -165,7 +183,7 @@ class PairTradingStrategy(bt.Strategy):
             qty_long=qty_long, qty_short=qty_short
         )
 
-        r = abs(self.spread_return())
+    
         self.tp = self.sl = r
         self.pnl_trade = []
         self.pnl_start = self.broker.getvalue()
@@ -210,8 +228,9 @@ class PairTradingStrategy(bt.Strategy):
     def next(self):
         if self.fit_copule():
             return
-
-        if self.is_edge_bar():
+        
+        is_edge = self.is_edge_bar()
+        if is_edge:
           #la dans ce code on attend juste qu'au close pour fermer position
           if self.active_stock and  self.close_mkt:
             self.close_trade('fin de journée! fermer toutes les positions')
@@ -220,7 +239,7 @@ class PairTradingStrategy(bt.Strategy):
         data = self.convert_to_return('series', [self.stock_a, self.stock_b])
         p_u_cond_v , p_v_cond_u = self.copule.MI_t(data)
         if not self.active_stock:
-          if not self.close_mkt:#ici je vais pouvoir mettre le truc de buffer_edge mais pour l'isntant si on est en fin journée
+          if not is_edge:  #anciennement close_mkt 
             if p_u_cond_v >= self.params.trade_condition and  p_v_cond_u <= 1 - self.params.trade_condition:
                 self.open_trade(self.stocks[self.stock_b], self.stocks[self.stock_a])
                 self.trade_direction = "short"
