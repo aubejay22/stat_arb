@@ -81,7 +81,7 @@ class CopuleBase(ABC):
         R[1, 0] = self.rho_t_moins_1
         self.copule = ot.NormalCopula(R)
         self.distribution = ot.JointDistribution(self.marginals, self.copule)
-
+    
    
     def probabilité_conditionnelle(self, data, epsilon=0.01):
         """
@@ -166,7 +166,6 @@ class CopuleGarch(CopuleBase):
         super().__init__()
         self.garch = Garch()
 
-
     def estimation_marginal(self, asset_name, asset_return, v):
         if v is None:
             v , _, _ = t.fit(asset_return, floc=0.0, fscale=1.0)
@@ -199,6 +198,49 @@ class CopuleGarch(CopuleBase):
     def MI_t(self, data):
         data = self.garch._nouveau_residu(data)
         return self.probabilité_conditionnelle(data)
+
+
+
+
+
+
+class CopuleGarchSemiParametric(CopuleBase):
+    def __init__(self):
+        super().__init__()
+        self.garch = Garch()
+
+    def estimation_marginal(self, asset_name, asset_return, v):
+        return ot.KernelSmoothing().build(asset_return)
+        
+    
+
+    def fit(self, df):
+        self.garch.reset_attribut()
+        self.garch._train_garch(df)
+        self.d_of_f = self.garch.get_doff()
+        self._train_copule(self.garch.get_standardized_residuals())
+
+    
+    def _train_copule(self, data):
+        data = data.dropna()
+        if data.shape[0] == 0:
+            raise ValueError("Plus de données après suppression des NaN. Impossible d’entraîner la copule.")
+
+        sample = ot.Sample(data.values.tolist())
+        self.marginals = [
+                          self.estimation_marginal(asset_name, sample.getMarginal(i), self.d_of_f[asset_name])
+                          for i, asset_name in enumerate(data.columns)
+                         ]
+        
+        self.copule = ot.NormalCopulaFactory().build(sample)
+        self.distribution = ot.JointDistribution(self.marginals, self.copule)
+    
+
+    def MI_t(self, data):
+        data = self.garch._nouveau_residu(data)
+        return self.probabilité_conditionnelle(data)
+
+
 
 
 

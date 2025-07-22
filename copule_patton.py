@@ -145,7 +145,7 @@ class CoefCorrDynamique:
                                                                            )
         return -log_lik
 
-
+    
     def _fit(self, eps: float = 1e-3):
         """
         Estime (ω, β, α) par maximum de vraisemblance sous la contrainte

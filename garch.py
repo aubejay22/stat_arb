@@ -40,7 +40,26 @@ class Garch:
         self.garch_is_converged = {}
         self.loglikelihood = {}
 
-        self.scale = 1000 #scale data to help to numerical optimizer to converge
+        
+    
+    def Hyp_test_mu(self, residu):
+        """
+        Vérifie si le mu est statistiquement différent de 0 en calculant I.C
+        """
+    
+        model = arch_model(residu, mean='Constant', vol='GARCH', p=1, q=1, dist='t', rescale=False)
+        garch_result = model.fit(disp='off')
+
+        if garch_result.optimization_result.success:
+            conf_int = garch_result.conf_int(alpha=0.0)
+            ci_lo, ci_hi = conf_int.loc['mu', 'lower'], conf_int.loc['mu', 'upper']
+
+            if 0 > ci_hi or 0 < ci_lo:
+                return True
+        else:
+            print("⚠️ GARCH did not converge")
+        return False      
+
 
     def _train_garch(self, df):
         """
@@ -52,7 +71,12 @@ class Garch:
         """
         for target in df.columns:
             residu = df[target] #*self.scale
-            model = arch_model(residu, mean='Zero', vol='GARCH', p=1, q=1, dist='t', rescale=False)
+
+            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!ajout!!!!!!!!!!!!!!!!!!!!!!
+            if self.Hyp_test_mu(residu):
+                model = arch_model(residu, mean='Constant', vol='GARCH', p=1, q=1, dist='t', rescale=False)
+            else:
+                model = arch_model(residu, mean='Zero', vol='GARCH', p=1, q=1, dist='t', rescale=False)
             garch_result = model.fit(disp='off')
 
             if garch_result.optimization_result.success:

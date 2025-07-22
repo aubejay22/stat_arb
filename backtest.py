@@ -49,7 +49,8 @@ class PairTradingStrategy(bt.Strategy):
         self.pnl_trade = []
         self.pnl_start = 0
 
-
+        
+        self.backtest_result = None
     # ------------------------------------------------------------------ #
     #  Utilitaires
     # ------------------------------------------------------------------ #
@@ -234,8 +235,10 @@ class PairTradingStrategy(bt.Strategy):
           #la dans ce code on attend juste qu'au close pour fermer position
           if self.active_stock and  self.close_mkt:
             self.close_trade('fin de journée! fermer toutes les positions')
+            self.equity_curve.append(self.broker.getvalue())
+            self.dates.append(self.datas[0].datetime.date(0))
           return
-
+        
         data = self.convert_to_return('series', [self.stock_a, self.stock_b])
         p_u_cond_v , p_v_cond_u = self.copule.MI_t(data)
         if not self.active_stock:
@@ -270,7 +273,7 @@ class PairTradingStrategy(bt.Strategy):
         returns = equity.pct_change().dropna()
 
         # Tracer la courbe de rendement cumulé
-        cumulative_returns = (1 + returns).cumprod()
+        cumulative_returns = (1 + returns).cumprod() 
         plt.figure(figsize=(12, 5))
         plt.plot(cumulative_returns, label="Rendement cumulé")
         plt.xlabel("Période")
@@ -283,7 +286,7 @@ class PairTradingStrategy(bt.Strategy):
         annual_factor = np.sqrt(252 * (6.5 * 60 / self.params.timeframe))
         volatility = returns.std() * annual_factor
         sharpe = returns.mean() / returns.std() * annual_factor
-        cumulative = (1 + returns).cumprod()
+        cumulative = (1 + returns).cumprod() 
         rolling_max = cumulative.cummax()
         drawdown = (cumulative - rolling_max) / rolling_max
         max_drawdown = drawdown.min()
@@ -317,3 +320,6 @@ class PairTradingStrategy(bt.Strategy):
             plt.show()
         else:
             print("\nAucun trade effectué.")
+
+
+         
