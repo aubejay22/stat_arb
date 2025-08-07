@@ -240,13 +240,8 @@ class PairTradingStrategy(bt.Strategy):
         qty_short = int(self.tradesize / price_short)
         
 
-        #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-        #    wtf j'ai buy avant acheté ??impossible xd
-
-        #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        self.buy(data=longue, size=qty_long)
         self.sell(data=short, size=qty_short)
+        self.buy(data=longue, size=qty_long)
         self.active_stock = True
 
         self.entry_datetime = self.datas[0].datetime.datetime(0)
@@ -284,16 +279,18 @@ class PairTradingStrategy(bt.Strategy):
         })
 
         if end_of_the_day is not None: #fin de la journée trading cloturé à 16h
-          self.close(data=self.stock_a, exectype=bt.Order.Close)
-          self.close(data=self.stock_b, exectype=bt.Order.Close)
+          self.close(data=self.stocks[self.entry_prices['long_asset']], exectype=bt.Order.Close)
+          self.close(data=self.stocks[self.entry_prices['short_asset']], exectype=bt.Order.Close)
         else:
-          self.close(data=self.stock_a)
-          self.close(data=self.stock_b)
+          self.close(data=self.stocks[self.entry_prices['long_asset']])
+          self.close(data=self.stocks[self.entry_prices['short_asset']])
 
         self.active_stock = False
         self.tp = self.sl = 0
         self.pnl_trade = []
         self.trade_direction = None
+
+
 
     # ------------------------------------------------------------------ #
     #  Boucle principale de Backtrader
@@ -369,3 +366,59 @@ class PairTradingStrategy(bt.Strategy):
 
 
 
+
+from datetime import datetime, timedelta
+import pandas as pd
+import backtrader as bt
+
+
+
+full_df = pd.read_csv('us_banks.csv')
+
+# Étape 1 : conversion explicite en datetime (si ce n'est pas déjà le cas)
+full_df['date'] = pd.to_datetime(full_df['date'], errors='coerce')
+# Étape 2 : enlever le fuseau horaire SANS conversion d'heure
+# (on enlève tzinfo mais on garde l'heure locale telle quelle)
+full_df['date'] = full_df['date'].apply(lambda dt: dt.replace(tzinfo=None) if pd.notna(dt) else dt)
+
+
+# Étape 2: sélectionner les colonnes d'intérêt
+cols = ['date', 'symbol', 'open', 'high', 'low', 'close', 'volume']
+full_df = full_df[cols]
+
+# Étape 3: pivot en colonnes multiples
+df_wide = full_df.pivot(index='date', columns='symbol', values=['open', 'high', 'low', 'close', 'volume'])
+
+# Étape 4: réordonner les colonnes si tu veux (facultatif)
+df_wide = df_wide.reorder_levels([1, 0], axis=1).sort_index(axis=1)
+
+# Étape 5: fixer l'index datetime
+df_wide.index = pd.to_datetime(df_wide.index)
+
+
+
+
+symbols = ['JPM', 'BAC', 'C', 'WFC', 'USB',
+           'PNC', 'TFC', 'GS', 'MS', 'SCHW']
+
+params_config = dict(
+    training_day=1,
+    trading_day=1,
+    trade_condition=0.99,
+    statistical_model=CopuleGarch,
+    profit_target=0,
+    edge_buffer=6
+    )
+
+
+
+backtest = PortfolioBacktest(
+    stocks=symbols,
+    df=df_wide,
+    fees=0,
+    params=params_config,
+    nom_fichier_result='resultat'
+)
+
+
+backtest.run() 

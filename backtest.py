@@ -173,8 +173,8 @@ class PairTradingStrategy(bt.Strategy):
         qty_long = int(self.tradesize / price_long)
         qty_short = int(self.tradesize / price_short)
 
-        self.buy(data=longue, size=qty_long)
         self.sell(data=short, size=qty_short)
+        self.buy(data=longue, size=qty_long)
         self.active_stock = True
 
         self.entry_datetime = self.datas[0].datetime.datetime(0)
@@ -210,13 +210,14 @@ class PairTradingStrategy(bt.Strategy):
             'qty_short': self.entry_prices['qty_short'],
             'pnl': pnl
         })
-
+        
+    
         if end_of_the_day is not None: #fin de la journée trading cloturé à 16h
-          self.close(data=self.stock_a, exectype=bt.Order.Close)
-          self.close(data=self.stock_b, exectype=bt.Order.Close)
+          self.close(data=self.stocks[self.entry_prices['long_asset']], exectype=bt.Order.Close)
+          self.close(data=self.stocks[self.entry_prices['short_asset']], exectype=bt.Order.Close)
         else:
-          self.close(data=self.stock_a)
-          self.close(data=self.stock_b)
+          self.close(data=self.stocks[self.entry_prices['long_asset']])
+          self.close(data=self.stocks[self.entry_prices['short_asset']])
 
         self.active_stock = False
         self.tp = self.sl = 0
